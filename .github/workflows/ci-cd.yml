@@ -86,12 +86,11 @@ jobs:
       - name: Appliquer tous les YAML
         run: |
           kubectl apply -f k8s/configmap.yaml -n ${{ env.K8S_NAMESPACE }}
-          kubectl apply -f k8s/pvc.yaml -n ${{ env.K8S_NAMESPACE }}
-          kubectl apply -f k8s/postgres.yaml -n ${{ env.K8S_NAMESPACE }}
+          kubectl apply -f k8s/postgres-pvc.yaml -n ${{ env.K8S_NAMESPACE }}
+          kubectl apply -f k8s/postgres-deployment.yaml -n ${{ env.K8S_NAMESPACE }}
           kubectl apply -f k8s/deployment.yaml -n ${{ env.K8S_NAMESPACE }}
           kubectl apply -f k8s/service.yaml -n ${{ env.K8S_NAMESPACE }}
           kubectl apply -f k8s/ingress.yaml -n ${{ env.K8S_NAMESPACE }}
-
       - name: Attendre le déploiement
         run: |
           kubectl rollout status deployment/rest-api-deployment -n ${{ env.K8S_NAMESPACE }}
