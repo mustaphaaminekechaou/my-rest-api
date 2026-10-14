@@ -1,0 +1,17 @@
+{
+  "name": "my-rest-api",
+  "version": "1.0.0",
+  "dependencies": {
+    "express": "^4.18.2",
+    "pg": "^8.11.3"
+  },
+  "scripts": {
+  "start": "node server.js",
+  "lint": "echo ok",
+  "test": "jest"
+},
+  "devDependencies": {
+    "jest": "^30.5.2",
+    "supertest": "^7.3.1"
+  }
+}

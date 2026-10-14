@@ -1,0 +1,20 @@
+# Dépendances
+node_modules/
+
+# Secrets et configuration locale
+.env
+.env.*
+
+# Logs
+npm-debug.log*
+*.log
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+
+# Éditeur
+.vscode/
+.idea/
+
+actions-runner/

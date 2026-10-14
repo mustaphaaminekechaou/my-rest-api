@@ -1,0 +1,98 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  IMAGE_NAME: my-rest-api
+  K8S_NAMESPACE: production
+
+jobs:
+  # Job 1 : tests (avec une vraie base Postgres)
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: mydb
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+
+  # Job 2 : construction et envoi de l'image sur Docker Hub
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Job 3 : déploiement sur Minikube (runner auto-hébergé sur ton PC)
+  deploy:
+    needs: build
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Créer le namespace
+        run: kubectl create namespace ${{ env.K8S_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Créer le Secret
+        run: |
+          kubectl create secret generic db-secret \
+            --from-literal=password='${{ secrets.DB_PASSWORD }}' \
+            -n ${{ env.K8S_NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Mettre l'image dans le Deployment
+        run: |
+          sed -i "s|IMAGE_PLACEHOLDER|${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}|" k8s/deployment.yaml
+
+      - name: Appliquer tous les YAML
+        run: |
+          kubectl apply -f k8s/configmap.yaml -n ${{ env.K8S_NAMESPACE }}
+          kubectl apply -f k8s/pvc.yaml -n ${{ env.K8S_NAMESPACE }}
+          kubectl apply -f k8s/postgres.yaml -n ${{ env.K8S_NAMESPACE }}
+          kubectl apply -f k8s/deployment.yaml -n ${{ env.K8S_NAMESPACE }}
+          kubectl apply -f k8s/service.yaml -n ${{ env.K8S_NAMESPACE }}
+          kubectl apply -f k8s/ingress.yaml -n ${{ env.K8S_NAMESPACE }}
+
+      - name: Attendre le déploiement
+        run: |
+          kubectl rollout status deployment/rest-api-deployment -n ${{ env.K8S_NAMESPACE }}
+          kubectl get pods -n ${{ env.K8S_NAMESPACE }}
