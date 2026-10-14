@@ -95,3 +95,22 @@ jobs:
         run: |
           kubectl rollout status deployment/rest-api-deployment -n ${{ env.K8S_NAMESPACE }}
           kubectl get pods -n ${{ env.K8S_NAMESPACE }}
+    # Job 4 : notification de fin de pipeline
+  notify:
+    needs: [test, build, deploy]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Résumé du pipeline
+        run: |
+          echo "Test   : ${{ needs.test.result }}"
+          echo "Build  : ${{ needs.build.result }}"
+          echo "Deploy : ${{ needs.deploy.result }}"
+          echo "Commit : ${{ github.sha }} par ${{ github.actor }}"
+
+          if [ "${{ needs.deploy.result }}" = "success" ]; then
+            echo "Déploiement réussi."
+          else
+            echo "Pipeline en échec ou incomplet."
+            exit 1
+          fi
